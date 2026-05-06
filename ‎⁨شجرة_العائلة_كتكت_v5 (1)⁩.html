@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>شجرة عائلة كتكت</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',Tahoma,Arial,sans-serif; background:#F0EAD6; overflow:hidden; height:100vh; user-select:none; }
+
+/* HEADER */
+#hdr { position:fixed;top:0;left:0;right:0;z-index:100;background:#4A2C0A;border-bottom:3px solid #C8960C;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 3px 12px rgba(0,0,0,.35); }
+#hdr h1 { color:#FFD700;font-size:1.3rem;font-weight:700; }
+#hdr .sub { color:#C8A96E;font-size:.7rem;margin-top:1px; }
+#ctrl { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
+.btn { background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#FFE8A0;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:.8rem;font-family:inherit;transition:.18s; }
+.btn:hover { background:rgba(255,215,0,.25);border-color:#FFD700; }
+.btn.gold { background:rgba(255,215,0,.2);border-color:#FFD700; }
+.btn.red  { border-color:#FF8A80;color:#FF8A80; }
+.btn.red:hover { background:rgba(255,82,82,.2); }
+#srch { background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 12px;border-radius:16px;font-size:.8rem;font-family:inherit;width:150px;direction:rtl; }
+#srch:focus { outline:none;border-color:#FFD700; }
+#srch::placeholder { color:#888; }
+
+/* CANVAS */
+#canvas { position:fixed;top:52px;left:0;right:0;bottom:30px;overflow:hidden;cursor:grab; }
+#canvas.dragging { cursor:grabbing; }
+#world { position:absolute;transform-origin:0 0; }
+
+/* NODE */
+.nw { position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center; }
+.nbox {
+  border-radius:10px;border:2.5px solid;text-align:center;cursor:pointer;
+  transition:box-shadow .2s,transform .15s;position:relative;
+  display:flex;flex-direction:column;align-items:center;
+  min-width:90px;max-width:130px;padding:6px 8px 5px;
+}
+.nbox:hover { transform:scale(1.06);box-shadow:0 4px 18px rgba(0,0,0,.28); }
+.nphoto { width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid;margin-bottom:4px;display:block; }
+.nphoto-placeholder { width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.08);border:1.5px dashed rgba(0,0,0,.2);margin-bottom:3px;display:flex;align-items:center;justify-content:center;font-size:16px;color:rgba(0,0,0,.25); }
+.nlabel { font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px; }
+.nbadge { position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#555;color:#fff;border-radius:8px;font-size:8px;padding:1px 5px;white-space:nowrap;pointer-events:none; }
+
+/* gen palettes */
+.g0 { background:#FFF9E6;border-color:#B8860B;color:#3E2000; }
+.g1 { background:#FBE9E7;border-color:#BF360C;color:#3E0A00; }
+.g2 { background:#E8F5E9;border-color:#1B5E20;color:#0A2E0A; }
+.g3 { background:#E3F2FD;border-color:#0D47A1;color:#001A3E; }
+.g4 { background:#FCE4EC;border-color:#880E4F;color:#3E0020; }
+.g5 { background:#E0F7FA;border-color:#006064;color:#002426; }
+.g6 { background:#FFF3E0;border-color:#BF360C;color:#3E1000; }
+.g7 { background:#F3E5F5;border-color:#4A148C;color:#1E0040; }
+.g8 { background:#F1F8E9;border-color:#1B5E20;color:#0A2000; }
+.g9 { background:#FFEBEE;border-color:#B71C1C;color:#3E0000; }
+.g0 .nphoto-placeholder,.g0 .nlabel { font-size:13px;font-weight:800; }
+
+.nbox.matched { box-shadow:0 0 0 3px #FF8F00,0 0 16px #FF8F00; }
+.nw.dimmed .nbox { opacity:.14; }
+
+/* LINES */
+#lines { position:absolute;top:0;left:0;pointer-events:none;overflow:visible; }
+
+/* INFO BAR */
+#ibar { position:fixed;bottom:0;left:0;right:0;z-index:100;background:#4A2C0A;border-top:1px solid #7A4A1A;padding:3px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.7rem;color:#C8A96E; }
+.dot { display:inline-block;width:8px;height:8px;border-radius:2px;margin-left:4px;vertical-align:middle; }
+
+/* TOOLTIP */
+#tip { position:fixed;z-index:500;background:#FFF9EE;border-right:4px solid #B8860B;border-radius:8px;padding:8px 14px;font-size:.82rem;pointer-events:none;display:none;box-shadow:0 4px 18px rgba(0,0,0,.2);direction:rtl;max-width:200px; }
+#tip .tn { font-size:1rem;font-weight:700;color:#3E2000;margin-bottom:2px; }
+#tip .ti { color:#7A4A1A;font-size:.75rem;line-height:1.6; }
+
+/* OVERLAY / MODALS */
+.overlay { display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center; }
+.overlay.open { display:flex; }
+.modal { background:#FFF8EE;border:2px solid #C8960C;border-radius:14px;padding:24px 26px;width:360px;max-width:95vw;direction:rtl;box-shadow:0 8px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto; }
+.modal h2 { color:#3E2000;font-size:1.15rem;margin-bottom:4px; }
+.modal .sub2 { color:#7A4A1A;font-size:.76rem;margin-bottom:16px; }
+.modal label { display:block;color:#4E342E;font-size:.82rem;margin-bottom:5px;margin-top:12px; }
+.modal label:first-of-type { margin-top:0; }
+.modal input[type=text] { width:100%;background:#fff;border:1.5px solid #C8A96E;color:#222;padding:7px 11px;border-radius:7px;font-family:inherit;font-size:.92rem;direction:rtl; }
+.modal input[type=text]:focus { outline:none;border-color:#B8860B; }
+.modal .mbtns { display:flex;gap:8px;justify-content:flex-end;margin-top:18px; }
+.modal .btn-cancel { background:transparent;border:1px solid #aaa;color:#555;padding:6px 14px;border-radius:14px;cursor:pointer;font-family:inherit;font-size:.82rem; }
+.modal .btn-cancel:hover { background:#f0e8e0; }
+
+/* photo preview */
+#photo-preview { width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid #C8A96E;display:none;margin:8px auto 0; }
+#photo-preview.show { display:block; }
+.photo-area { text-align:center; }
+.photo-drop { border:2px dashed #C8A96E;border-radius:10px;padding:12px 10px;text-align:center;color:#8a6a40;font-size:.8rem;cursor:pointer;margin-top:6px;transition:.2s; }
+.photo-drop:hover { background:rgba(200,150,12,.08);border-color:#B8860B; }
+.photo-drop input { display:none; }
+
+/* CTX MENU */
+#ctx { position:fixed;z-index:700;background:#FFF8EE;border:1.5px solid #C8960C;border-radius:9px;padding:5px 0;display:none;min-width:155px;box-shadow:0 6px 24px rgba(0,0,0,.22);direction:rtl; }
+#ctx div { padding:8px 15px;cursor:pointer;font-size:.84rem;color:#3E2000; }
+#ctx div:hover { background:rgba(200,150,12,.15); }
+#ctx .sep { height:1px;background:#E8D5A0;margin:3px 0;pointer-events:none; }
+
+/* SAVED */
+#saved { position:fixed;top:60px;left:16px;z-index:700;background:#2E7D32;color:#fff;padding:5px 14px;border-radius:20px;font-size:.8rem;display:none;box-shadow:0 2px 10px rgba(0,0,0,.2); }
+
+/* ══════════════════════════════════════
+   SPLASH / WELCOME SCREEN
+══════════════════════════════════════ */
+#splash {
+  position:fixed;inset:0;z-index:1000;
+  background:linear-gradient(160deg,#2C1503 0%,#4A2C0A 45%,#7A4A1A 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:24px;
+  transition:opacity .6s ease, visibility .6s ease;
+}
+#splash.hide { opacity:0;visibility:hidden;pointer-events:none; }
+.splash-tree { font-size:72px;margin-bottom:10px;animation:sway 3s ease-in-out infinite; }
+@keyframes sway { 0%,100%{transform:rotate(-3deg)} 50%{transform:rotate(3deg)} }
+.splash-title {
+  color:#FFD700;
+  font-size:clamp(2rem,8vw,3.4rem);
+  font-weight:900;
+  letter-spacing:1px;
+  text-shadow:0 3px 18px rgba(0,0,0,.5);
+  line-height:1.2;
+  margin-bottom:6px;
+}
+.splash-meta {
+  background:rgba(0,0,0,.25);
+  border:1px solid rgba(200,150,12,.3);
+  border-radius:12px;
+  padding:14px 20px;
+  margin-bottom:28px;
+  text-align:right;
+  direction:rtl;
+}
+.splash-meta-row {
+  color:#C8A96E;
+  font-size:clamp(.8rem,3.2vw,1rem);
+  line-height:2;
+}
+.splash-meta-row strong { color:#FFE8A0; }
+.update-row { color:#90CAF9;margin-top:4px;padding-top:6px;border-top:1px solid rgba(200,150,12,.2); }
+.update-row strong { color:#BBDEFB; }
+.splash-divider {
+  width:60px;height:3px;
+  background:linear-gradient(90deg,transparent,#FFD700,transparent);
+  border-radius:2px;margin:0 auto 28px;
+}
+.splash-btn {
+  background:linear-gradient(135deg,#B8860B,#FFD700,#B8860B);
+  color:#3E2000;
+  border:none;
+  padding:16px 48px;
+  border-radius:50px;
+  font-size:clamp(1rem,4vw,1.25rem);
+  font-weight:800;
+  font-family:inherit;
+  cursor:pointer;
+  box-shadow:0 6px 30px rgba(200,150,12,.5);
+  transition:transform .18s, box-shadow .18s;
+  letter-spacing:.5px;
+  -webkit-tap-highlight-color:transparent;
+}
+.splash-btn:hover,.splash-btn:active { transform:scale(1.07);box-shadow:0 8px 40px rgba(200,150,12,.7); }
+.splash-count {
+  color:#A07840;
+  font-size:clamp(.7rem,2.8vw,.85rem);
+  margin-top:22px;
+}
+
+/* ══════════════════════════════════════
+   MOBILE OPTIMIZATIONS
+══════════════════════════════════════ */
+@media (max-width:600px){
+  #hdr { padding:6px 10px; flex-wrap:wrap; gap:6px; }
+  #hdr h1 { font-size:1rem; }
+  #hdr .sub { display:none; }
+  #ctrl { gap:4px; }
+  .btn { padding:6px 10px; font-size:.75rem; border-radius:14px; min-height:34px; }
+  #srch { width:120px; padding:6px 10px; font-size:.75rem; min-height:34px; }
+  #canvas { top:50px; bottom:36px; }
+  #ibar { font-size:.62rem; padding:2px 8px; gap:6px; }
+  #ibar .dot { width:7px;height:7px; }
+  .nbox { min-width:78px;max-width:110px;padding:5px 6px 4px; }
+  .nlabel { font-size:10.5px; }
+  .modal { padding:18px 16px; }
+  /* bigger touch targets for nodes */
+  .nbox { min-height:36px; }
+}
+@media (max-width:380px){
+  #hdr h1 { font-size:.9rem; }
+  .btn { padding:5px 8px; font-size:.7rem; }
+  #srch { width:100px; }
+}
+/* Prevent double-tap zoom on buttons */
+button, .nbox { touch-action:manipulation; }
+/* Long-press context menu on mobile */
+.nbox { -webkit-user-select:none;user-select:none; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH SCREEN -->
+<div id="splash">
+  <div class="splash-tree">🌳</div>
+  <div class="splash-title">شجرة العائلة<br><span style="color:#FFE066;">" كتكت "</span></div>
+  <div class="splash-divider"></div>
+  <div class="splash-meta">
+    <div class="splash-meta-row">✍️ تنفيذ: <strong>يوسف عيسى كتكت</strong> &nbsp;|&nbsp; 25/7/2023</div>
+    <div class="splash-meta-row">👁 إشراف: <strong>عيسى يوسف كتكت</strong></div>
+    <div class="splash-meta-row">📜 موروثة من: <strong>يوسف محمود حامد كتكت</strong></div>
+    <div class="splash-meta-row update-row">🔄 آخر تحديث: <strong>5/5/2026</strong></div>
+  </div>
+  <button class="splash-btn" onclick="enterTree()">ادخل الشجرة ←</button>
+  <div class="splash-count" id="splash-count"></div>
+</div>
+
+<div id="hdr">
+  <div>
+    <h1>🌳 شجرة عائلة كتكت</h1>
+    <div class="sub">انقر يميناً على أي اسم للخيارات</div>
+  </div>
+  <div id="ctrl">
+    <input id="srch" type="text" placeholder="ابحث عن اسم..." oninput="doSearch(this.value)">
+    <button class="btn gold" onclick="expandAll()">⬇ توسيع</button>
+    <button class="btn" onclick="collapseAll()">⬆ طي</button>
+    <button class="btn" onclick="fitView()">⊙ توسيط</button>
+    <button class="btn red" onclick="resetTree()">↺ تعيين</button>
+  </div>
+</div>
+
+<div id="canvas">
+  <div id="world"><svg id="lines"></svg></div>
+</div>
+
+<div id="tip"><div class="tn" id="tn"></div><div class="ti" id="ti"></div></div>
+
+<!-- ADD CHILD MODAL -->
+<div class="overlay" id="ov-add" onclick="if(event.target===this)closeAdd()">
+  <div class="modal">
+    <h2>➕ إضافة ابن جديد</h2>
+    <div class="sub2" id="add-parent-label"></div>
+    <label>اسم الابن</label>
+    <input type="text" id="add-name" placeholder="اكتب الاسم..." onkeydown="if(event.key==='Enter')doAdd()">
+    <label>صورة (اختياري)</label>
+    <div class="photo-area">
+      <img id="add-photo-preview" class="" src="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #C8A96E;display:none;margin:0 auto 8px;">
+      <div class="photo-drop" onclick="document.getElementById('add-photo-input').click()">
+        📷 انقر لاختيار صورة
+        <input type="file" id="add-photo-input" accept="image/*" onchange="previewPhoto('add')">
+      </div>
+    </div>
+    <div class="mbtns">
+      <button class="btn-cancel" onclick="closeAdd()">إلغاء</button>
+      <button class="btn gold" onclick="doAdd()">✔ إضافة</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="overlay" id="ov-edit" onclick="if(event.target===this)closeEdit()">
+  <div class="modal">
+    <h2>✏️ تعديل بيانات</h2>
+    <div class="sub2" id="edit-gen-label"></div>
+    <label>الاسم</label>
+    <input type="text" id="edit-name" onkeydown="if(event.key==='Enter')doEdit()">
+    <label>الصورة</label>
+    <div class="photo-area">
+      <img id="edit-photo-preview" src="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #C8A96E;display:none;margin:0 auto 8px;">
+      <div class="photo-drop" onclick="document.getElementById('edit-photo-input').click()">
+        📷 انقر لتغيير الصورة
+        <input type="file" id="edit-photo-input" accept="image/*" onchange="previewPhoto('edit')">
+      </div>
+      <button class="btn-cancel" style="margin-top:6px;font-size:.75rem" onclick="clearEditPhoto()">🗑 إزالة الصورة</button>
+    </div>
+    <div class="mbtns">
+      <button class="btn-cancel" onclick="closeEdit()">إلغاء</button>
+      <button class="btn gold" onclick="doEdit()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- CTX MENU -->
+<div id="ctx">
+  <div onclick="openAdd()">➕ إضافة ابن</div>
+  <div onclick="openEdit()">✏️ تعديل الاسم / الصورة</div>
+  <div class="sep"></div>
+  <div onclick="ctxExpand()">⬇ توسيع</div>
+  <div onclick="ctxCollapse()">⬆ طي</div>
+  <div class="sep"></div>
+  <div onclick="doDelete()" style="color:#C62828;">🗑 حذف هذا الشخص</div>
+</div>
+
+<div id="saved">✔ تم الحفظ</div>
+
+<div id="ibar">
+  <span id="nc"></span>
+  <span>🖱 اسحب • عجلة/قرص للتكبير • انقر للطي • اضغط مطولاً للخيارات</span>
+  <span style="margin-right:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+    <span><span class="dot" style="background:#B8860B"></span>الأول</span>
+    <span><span class="dot" style="background:#BF360C"></span>الثاني</span>
+    <span><span class="dot" style="background:#1B5E20"></span>الثالث</span>
+    <span><span class="dot" style="background:#0D47A1"></span>الرابع</span>
+    <span><span class="dot" style="background:#880E4F"></span>الخامس</span>
+    <span><span class="dot" style="background:#006064"></span>السادس</span>
+    <span><span class="dot" style="background:#E65100"></span>السابع</span>
+    <span><span class="dot" style="background:#4A148C"></span>الثامن</span>
+    <span><span class="dot" style="background:#1B5E20"></span>التاسع</span>
+    <span><span class="dot" style="background:#B71C1C"></span>العاشر</span>
+  </span>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+const ORIG ={"name":"احمد كتكت","children":[{"name":"حسين","children":[{"name":"حامد","children":[{"name":"حسين","children":[{"name":"محمد","children":[{"name":"حسن","children":[{"name":"محمد","children":[{"name":"عمر"},{"name":"عمار"}]},{"name":"محمود","children":[{"name":"احمد"},{"name":"محمد"},{"name":"حسن"},{"name":"مالك"},{"name":"معتز"}]},{"name":"احمد","children":[{"name":"بشار"},{"name":"تيم"}]},{"name":"عمر","children":[{"name":"حسام"},{"name":"وسام"},{"name":"مؤمن"}]},{"name":"علي","children":[{"name":"إيهاب"},{"name":"وسيم"},{"name":"ياسين"}]}]}]}]},{"name":"يوسف","children":[{"name":"اسماعيل","children":[{"name":"يوسف","children":[{"name":"اسماعيل","children":[{"name":"يوسف"}]},{"name":"صلاح"}]},{"name":"محمد","children":[{"name":"المعتصم بالله"}]},{"name":"عمر","children":[{"name":"قيس"},{"name":"يحيى"}]}]},{"name":"عوض"}]},{"name":"محمود","children":[{"name":"يوسف","children":[{"name":"محمد","children":[{"name":"بسام","children":[{"name":"محمد"},{"name":"زيد"},{"name":"وليد"}]},{"name":"ابراهيم","children":[{"name":"اسماعيل"},{"name":"عبد الرحمن"},{"name":"يوسف"}]},{"name":"احمد","children":[{"name":"ايهم"}]},{"name":"خليل","children":[{"name":"عبد الله"}]},{"name":"ايمن","children":[{"name":"يزن"},{"name":"غيث"}]},{"name":"عبد الرحمن"},{"name":"اسامة"}]},{"name":"خليل","children":[{"name":"يوسف","children":[{"name":"خليل"},{"name":"محمد"},{"name":"ليث"}]},{"name":"فؤاد","children":[{"name":"عمر"}]}]},{"name":"عيسى","children":[{"name":"اياد","children":[{"name":"جهاد"},{"name":"يزن"}]},{"name":"محمد","children":[{"name":"الوليد"},{"name":"خالد"}]},{"name":"يوسف","children":[{"name":"عمار"},{"name":"عيسى"}]},{"name":"عبد الرحمن","children":[{"name":"اسيد"}]}]},{"name":"محمود","children":[{"name":"خالد","children":[{"name":"ادم"}]},{"name":"يحيى"},{"name":"يامن"}]},{"name":"خالد","children":[{"name":"عمر"},{"name":"مصعب"}]}]},{"name":"موسى","children":[{"name":"ابراهيم","children":[{"name":"محمد","children":[{"name":"ابراهيم"},{"name":"ريان"}]},{"name":"رائد","children":[{"name":"يوسف"},{"name":"عماد"},{"name":"ثائر"},{"name":"عدي"}]},{"name":"علاء","children":[{"name":"الياس"},{"name":"ينال"}]},{"name":"عبد الرحمن"}]},{"name":"احمد","children":[{"name":"عبد الله","children":[{"name":"احمد"}]},{"name":"محمد","children":[{"name":"سند"}]},{"name":"بلال","children":[{"name":"قصي"},{"name":"احمد"},{"name":"زهير"},{"name":"محمد"}]},{"name":"علي","children":[{"name":"عبد الله"},{"name":"يوسف"},{"name":"معتز"}]},{"name":"حسين","children":[{"name":"راشد"},{"name":"محمد"},{"name":"همام"},{"name":"يامن"}]},{"name":"يحيى","children":[{"name":"لؤي"}]},{"name":"هاشم","children":[{"name":"عبد الرحمن"},{"name":"احمد"},{"name":"انس"}]}]}]}]}]},{"name":"مصطفى","children":[{"name":"جبر","children":[{"name":"عبد الفتاح","children":[{"name":"شعبان","children":[{"name":"حسن","children":[{"name":"فيصل","children":[{"name":"صهيب","children":[{"name":"لؤي"}]},{"name":"حمزة"},{"name":"محمد"}]},{"name":"حسين","children":[{"name":"محمود"},{"name":"عز الدين"}]},{"name":"عاطف","children":[{"name":"حسن"},{"name":"احمد"}]},{"name":"محمد","children":[{"name":"احمد"},{"name":"يزن"}]},{"name":"عصام","children":[{"name":"محمد"}]}]}]},{"name":"عودة","children":[{"name":"محمد","children":[{"name":"عودة","children":[{"name":"محمد"}]},{"name":"عبد الرحمن","children":[{"name":"جواد"}]},{"name":"عماد الدين"},{"name":"عز الدين"},{"name":"صلاح الدين"}]},{"name":"عبد الفتاح","children":[{"name":"عدي","children":[{"name":"عبد الفتاح"},{"name":"عبد الملك"}]},{"name":"زكريا","children":[{"name":"اسد"}]},{"name":"محمد"},{"name":"مصطفى"}]},{"name":"خليل","children":[{"name":"يحيى","children":[{"name":"خليل"}]},{"name":"عمران"}]},{"name":"موسى","children":[{"name":"عبد الفتاح"}]},{"name":"عيسى","children":[{"name":"عمار"},{"name":"عمر"}]},{"name":"احمد","children":[{"name":"حاتم"},{"name":"جواد"},{"name":"موسى"}]},{"name":"اسماعيل","children":[{"name":"عبد الله"},{"name":"ابراهيم"}]}]}]},{"name":"علي","children":[{"name":"عبد الحميد","children":[{"name":"سعدي","children":[{"name":"جهاد","children":[{"name":"عمر"}]},{"name":"عبد الحميد"},{"name":"احمد"},{"name":"فراس"}]},{"name":"سعيد","children":[{"name":"مراد"},{"name":"عبد الحميد"}]},{"name":"محمد","children":[{"name":"بلال"}]},{"name":"علي","children":[{"name":"اياد"},{"name":"عبد الله"},{"name":"كرم"}]},{"name":"صهيب"}]},{"name":"محمد","children":[{"name":"مروان ( احمد)","children":[{"name":"عمر"},{"name":"مالك"},{"name":"محمد"}]},{"name":"حسين","children":[{"name":"احمد"},{"name":"عدنان"},{"name":"عبد الرحمن"}]}]}]},{"name":"عبد الكريم","children":[{"name":"محمد","children":[{"name":"محمود","children":[{"name":"اسامة"},{"name":"احمد","children":[{"name":"عمرو"},{"name":"عبيدة"},{"name":"جود"}]},{"name":"عماد"}]},{"name":"يونس","children":[{"name":"جهاد"},{"name":"محمد خير"},{"name":"عبد الله"}]},{"name":"عمران","children":[{"name":"مؤمن"}]},{"name":"جبرين","children":[{"name":"محمد"},{"name":"احمد"},{"name":"يوسف"}]}]}]},{"name":"جمعة","children":[{"name":"سليمان","children":[{"name":"داوود","children":[{"name":"محمد"},{"name":"احمد"}]},{"name":"يعقوب","children":[{"name":"يوسف"},{"name":"سليمان"},{"name":"عبد الرحمن"}]},{"name":"محمد","children":[{"name":"حمزة"},{"name":"مصطفى"}]},{"name":"اسحاق"},{"name":"عيسى","children":[{"name":"محمد"}]},{"name":"موسى"},{"name":"احمد"}]},{"name":"اسماعيل","children":[{"name":"جمعة","children":[{"name":"انس","children":[{"name":"محمود"},{"name":"احمد"},{"name":"عمر"}]},{"name":"صهيب"},{"name":"اسماعيل"}]},{"name":"ابراهيم","children":[{"name":"يعقوب"},{"name":"محمد"},{"name":"يحيى"}]},{"name":"جبر","children":[{"name":"عمر"},{"name":"محمد"},{"name":"احمد"},{"name":"اسامة"}]},{"name":"ياسين","children":[{"name":"اسماعيل"}]},{"name":"محمود"},{"name":"رمضان"},{"name":"مصطفى"}]}]}]},{"name":"جابر","children":[{"name":"حسين","children":[{"name":"خليل","children":[{"name":"فايز"},{"name":"نافز"},{"name":"محمد"},{"name":"محمود"},{"name":"حسين"}]},{"name":"محمد","children":[{"name":"ناهض"},{"name":"ماهر"},{"name":"باسم"},{"name":"رائد"},{"name":"عادل"},{"name":"سهيل"},{"name":"نعيم"}]},{"name":"حسن","children":[{"name":"عماد"},{"name":"اياد"},{"name":"جهاد"},{"name":"زياد"},{"name":"محمد"}]}]},{"name":"عبد الفتاح","children":[{"name":"ابراهيم","children":[{"name":"محمد"},{"name":"كمال"},{"name":"جمال"},{"name":"احمد"}]},{"name":"مبارك","children":[{"name":"محمد"},{"name":"عبد"},{"name":"صبحي"},{"name":"عبد الله"}]},{"name":"اسماعيل","children":[{"name":"وائل"},{"name":"بلال"},{"name":"فؤاد"},{"name":"احمد"}]},{"name":"جميل","children":[{"name":"ايمن"},{"name":"محمد"}]}]},{"name":"عطية"},{"name":"عطا الله"},{"name":"احمد"}]}]}]}]};
+
+const SK='katkat_v4';
+const GENS=['الجيل الأول','الجيل الثاني','الجيل الثالث','الجيل الرابع','الجيل الخامس','الجيل السادس','الجيل السابع','الجيل الثامن','الجيل التاسع','الجيل العاشر'];
+const LCOLS=['#B8860B','#BF360C','#1B5E20','#0D47A1','#880E4F','#006064','#E65100','#4A148C','#1B5E20','#B71C1C'];
+
+// photo store: {id -> dataURL}
+let photos = {};
+
+// ══════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════
+function loadData(){
+  try{
+    const s=localStorage.getItem(SK);
+    if(!s) return {tree:clone(ORIG),photos:{}};
+    return JSON.parse(s);
+  }catch(e){ return {tree:clone(ORIG),photos:{}}; }
+}
+function saveAll(){
+  const obj={tree:treeToObj(0),photos};
+  try{ localStorage.setItem(SK,JSON.stringify(obj)); flashSaved(); }
+  catch(e){ alert('تعذّر الحفظ — قد تكون الصور كبيرة جداً. حاول بصور أصغر.'); }
+}
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function treeToObj(id){
+  const n=nodes[id];
+  const kids=nodes.filter(c=>c.pid===id);
+  const o={name:n.name};
+  if(kids.length) o.children=kids.map(c=>treeToObj(c.id));
+  return o;
+}
+
+// ══════════════════════════════════════════
+// NODE STATE
+// ══════════════════════════════════════════
+let nodes=[], idSeq=0;
+// {id, pid, name, depth, x, y, collapsed, el}
+
+const NW=120, NH_BASE=36, GAPX=22, GAPY=80;
+function nodeH(id){ return photos[id] ? 86 : NH_BASE; }
+
+function loadData2(){
+  const d=loadData();
+  photos=d.photos||{};
+  return d.tree;
+}
+
+function buildNodes(obj,pid,depth){
+  const id=idSeq++;
+  nodes.push({id,pid,name:obj.name,depth,x:0,y:0,collapsed:depth>=3,el:null});
+  (obj.children||[]).forEach(c=>buildNodes(c,id,depth+1));
+}
+
+// ══════════════════════════════════════════
+// LAYOUT
+// ══════════════════════════════════════════
+function getVisible(){
+  const vis=new Set();
+  function walk(id){ vis.add(id); if(!nodes[id].collapsed) nodes.filter(c=>c.pid===id).forEach(c=>walk(c.id)); }
+  walk(0); return vis;
+}
+
+function layout(){
+  const vis=getVisible();
+  function leaves(id){ if(!vis.has(id))return 0; const k=nodes.filter(c=>c.pid===id&&vis.has(c.id)); return k.length?k.reduce((s,c)=>s+leaves(c.id),0):1; }
+  function place(id,left){
+    const kids=nodes.filter(c=>c.pid===id&&vis.has(c.id));
+    const n=nodes[id];
+    if(!kids.length){ n.x=left*(NW+GAPX)+NW/2; }
+    else{
+      let cur=left;
+      kids.forEach(k=>{ place(k.id,cur); cur+=leaves(k.id); });
+      n.x=(nodes[kids[0].id].x+nodes[kids[kids.length-1].id].x)/2;
+    }
+    n.y=n.depth*(NH_BASE+GAPY);
+  }
+  place(0,0);
+}
+
+// ══════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════
+const world=document.getElementById('world');
+const svgEl=document.getElementById('lines');
+const canvas=document.getElementById('canvas');
+
+function render(){
+  const vis=getVisible();
+  nodes.forEach(n=>{ if(!vis.has(n.id)&&n.el){ n.el.remove(); n.el=null; } });
+
+  vis.forEach(id=>{
+    const n=nodes[id];
+    if(!n.el) n.el=makeNodeEl(id);
+    n.el.style.left=n.x+'px';
+    n.el.style.top=n.y+'px';
+    refreshNodeEl(id);
+  });
+
+  drawLines(vis);
+  document.getElementById('nc').textContent='👥 ظاهر: '+vis.size+' شخص';
+
+  let mx=0,my=0;
+  vis.forEach(id=>{ mx=Math.max(mx,nodes[id].x+NW); my=Math.max(my,nodes[id].y+100); });
+  svgEl.style.width=(mx+60)+'px'; svgEl.style.height=(my+60)+'px';
+}
+
+function makeNodeEl(id){
+  const n=nodes[id];
+  const wrap=document.createElement('div');
+  wrap.className='nw'; wrap.id='nw'+id;
+  const box=document.createElement('div');
+  box.className='nbox g'+Math.min(n.depth,9);
+  box.addEventListener('click',e=>{ e.stopPropagation(); toggleNode(id); });
+  box.addEventListener('contextmenu',e=>{ e.preventDefault(); e.stopPropagation(); showCtx(e,id); });
+  // Mobile long-press for context menu
+  box.addEventListener('touchstart',e=>{ e.stopPropagation(); startLongPress(e,id); },{passive:true});
+  box.addEventListener('touchend',e=>{ cancelLongPress(); },{passive:true});
+  box.addEventListener('touchmove',e=>{ cancelLongPress(); },{passive:true});
+  box.addEventListener('mouseenter',e=>showTip(e,id));
+  box.addEventListener('mousemove',moveTip);
+  box.addEventListener('mouseleave',hideTip);
+  wrap.appendChild(box);
+  world.appendChild(wrap);
+  return wrap;
+}
+
+function refreshNodeEl(id){
+  const n=nodes[id];
+  const wrap=n.el;
+  const box=wrap.querySelector('.nbox');
+  box.innerHTML=''; // rebuild contents
+
+  // badge
+  const totalKids=nodes.filter(c=>c.pid===id).length;
+  if(n.collapsed&&totalKids>0){
+    const b=document.createElement('span');
+    b.className='nbadge'; b.textContent='+'+totalKids;
+    box.appendChild(b);
+  }
+
+  // photo
+  if(photos[id]){
+    const img=document.createElement('img');
+    img.className='nphoto';
+    img.src=photos[id];
+    img.style.borderColor=LCOLS[Math.min(n.depth,9)];
+    box.appendChild(img);
+  }
+
+  // name label
+  const lbl=document.createElement('span');
+  lbl.className='nlabel';
+  lbl.textContent=n.name;
+  if(n.depth===0){ lbl.style.fontSize='13px'; lbl.style.fontWeight='800'; }
+  box.appendChild(lbl);
+}
+
+function drawLines(vis){
+  svgEl.innerHTML='';
+  vis.forEach(id=>{
+    const n=nodes[id];
+    if(n.pid===null||n.pid===undefined||!vis.has(n.pid)) return;
+    const p=nodes[n.pid];
+    const ph=nodeH(p.id), nh=nodeH(id);
+    const x1=p.x, y1=p.y+ph/2;
+    const x2=n.x, y2=n.y-nh/2;
+    const my=(y1+y2)/2;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${x1},${y1} V${my} H${x2} V${y2}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke',LCOLS[Math.min(p.depth,9)]);
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('stroke-opacity','0.6');
+    svgEl.appendChild(path);
+  });
+}
+
+function toggleNode(id){ nodes[id].collapsed=!nodes[id].collapsed; layout(); render(); }
+
+// ══════════════════════════════════════════
+// PAN / ZOOM
+// ══════════════════════════════════════════
+let tx=40,ty=20,sc=1,dragging=false,lx,ly;
+function applyT(){ world.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`; }
+
+canvas.addEventListener('mousedown',e=>{
+  const t=e.target;
+  if(t===canvas||t===world||t===svgEl||t.tagName==='path'||t.tagName==='svg'){
+    dragging=true;lx=e.clientX;ly=e.clientY;canvas.classList.add('dragging');
+  }
+});
+window.addEventListener('mousemove',e=>{ if(!dragging)return; tx+=e.clientX-lx;ty+=e.clientY-ly;lx=e.clientX;ly=e.clientY;applyT(); });
+window.addEventListener('mouseup',()=>{ dragging=false;canvas.classList.remove('dragging'); });
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.12:0.89;
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left,my=e.clientY-r.top;
+  tx=mx-(mx-tx)*f;ty=my-(my-ty)*f;sc=Math.max(0.04,Math.min(4,sc*f));applyT();
+},{passive:false});
+
+let lastPinch=null;
+canvas.addEventListener('touchstart',e=>{ if(e.touches.length===1){dragging=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;} },{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&dragging){ tx+=e.touches[0].clientX-lx;ty+=e.touches[0].clientY-ly;lx=e.touches[0].clientX;ly=e.touches[0].clientY;applyT(); }
+  else if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(lastPinch){ sc=Math.max(0.04,Math.min(4,sc*d/lastPinch));applyT(); }
+    lastPinch=d;
+  }
+},{passive:false});
+canvas.addEventListener('touchend',e=>{ dragging=false;if(e.touches.length<2)lastPinch=null; },{passive:true});
+
+// ══════════════════════════════════════════
+// FIT / EXPAND / COLLAPSE
+// ══════════════════════════════════════════
+function fitView(){
+  // Center on the root node (الجيل الأول - أحمد كتكت)
+  const root=nodes[0];
+  if(!root) return;
+  const cw=canvas.clientWidth, ch=canvas.clientHeight;
+  // Use a comfortable zoom scale
+  const targetSc=Math.min(1.2, Math.max(0.6, cw/400));
+  sc=targetSc;
+  // Place root node horizontally centered, vertically near top (20% from top)
+  tx=cw/2 - sc*root.x;
+  ty=Math.round(ch*0.18) - sc*root.y;
+  applyT();
+}
+function expandAll(){ nodes.forEach(n=>n.collapsed=false);layout();render(); }
+function collapseAll(){ nodes.forEach(n=>{ if(n.depth>0)n.collapsed=true; });layout();render(); }
+
+// ══════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════
+function doSearch(q){
+  document.querySelectorAll('.nw').forEach(e=>e.classList.remove('dimmed'));
+  document.querySelectorAll('.nbox').forEach(e=>e.classList.remove('matched'));
+  if(!q.trim())return;
+  getVisible().forEach(id=>{
+    const n=nodes[id]; if(!n.el)return;
+    if(n.name.includes(q.trim())) n.el.querySelector('.nbox').classList.add('matched');
+    else n.el.classList.add('dimmed');
+  });
+}
+
+// ══════════════════════════════════════════
+// TOOLTIP
+// ══════════════════════════════════════════
+function showTip(e,id){
+  const n=nodes[id];
+  const kids=nodes.filter(c=>c.pid===id).length;
+  document.getElementById('tn').textContent=n.name;
+  document.getElementById('ti').innerHTML=(GENS[n.depth]||'')+'<br>'+(kids?'الأبناء: '+kids:'لا أبناء مسجلون');
+  document.getElementById('tip').style.display='block';moveTip(e);
+}
+function moveTip(e){ const t=document.getElementById('tip');t.style.left=(e.clientX+14)+'px';t.style.top=(e.clientY-14)+'px'; }
+function hideTip(){ document.getElementById('tip').style.display='none'; }
+
+// ══════════════════════════════════════════
+// CONTEXT MENU
+// ══════════════════════════════════════════
+let ctxId=null;
+function showCtx(e,id){ hideTip();ctxId=id;const m=document.getElementById('ctx');m.style.display='block';m.style.left=e.clientX+'px';m.style.top=e.clientY+'px'; }
+function hideCtx(){ document.getElementById('ctx').style.display='none';ctxId=null; }
+document.addEventListener('click',hideCtx);
+function ctxExpand(){ if(ctxId!==null){nodes[ctxId].collapsed=false;layout();render();}hideCtx(); }
+function ctxCollapse(){ if(ctxId!==null){nodes[ctxId].collapsed=true;layout();render();}hideCtx(); }
+
+// ══════════════════════════════════════════
+// PHOTO HELPERS
+// ══════════════════════════════════════════
+let pendingAddPhoto=null, pendingEditPhoto=null, editPhotoCleared=false;
+
+function previewPhoto(mode){
+  const input=document.getElementById(mode+'-photo-input');
+  const prev=document.getElementById(mode+'-photo-preview');
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    prev.src=ev.target.result;
+    prev.style.display='block';
+    if(mode==='add') pendingAddPhoto=ev.target.result;
+    else { pendingEditPhoto=ev.target.result; editPhotoCleared=false; }
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════════════════════════
+// ADD CHILD
+// ══════════════════════════════════════════
+let addPid=null;
+function openAdd(){
+  if(ctxId===null)return; addPid=ctxId; hideCtx();
+  document.getElementById('add-parent-label').textContent='الأب: '+nodes[addPid].name+' ('+( GENS[nodes[addPid].depth]||'')+')';
+  document.getElementById('add-name').value='';
+  document.getElementById('add-photo-preview').style.display='none';
+  document.getElementById('add-photo-input').value='';
+  pendingAddPhoto=null;
+  document.getElementById('ov-add').classList.add('open');
+  setTimeout(()=>document.getElementById('add-name').focus(),120);
+}
+function closeAdd(){ document.getElementById('ov-add').classList.remove('open'); addPid=null; pendingAddPhoto=null; }
+function doAdd(){
+  const name=document.getElementById('add-name').value.trim();
+  if(!name||addPid===null)return;
+  const depth=nodes[addPid].depth+1;
+  const id=nodes.length;
+  nodes.push({id,pid:addPid,name,depth,x:0,y:0,collapsed:false,el:null});
+  if(pendingAddPhoto) photos[id]=pendingAddPhoto;
+  nodes[addPid].collapsed=false;
+  closeAdd(); layout(); render(); saveAll();
+}
+
+// ══════════════════════════════════════════
+// EDIT
+// ══════════════════════════════════════════
+let editId=null;
+function openEdit(){
+  if(ctxId===null)return; editId=ctxId; hideCtx();
+  const n=nodes[editId];
+  document.getElementById('edit-gen-label').textContent=GENS[n.depth]||'';
+  document.getElementById('edit-name').value=n.name;
+  const prev=document.getElementById('edit-photo-preview');
+  if(photos[editId]){ prev.src=photos[editId]; prev.style.display='block'; }
+  else { prev.src=''; prev.style.display='none'; }
+  document.getElementById('edit-photo-input').value='';
+  pendingEditPhoto=null; editPhotoCleared=false;
+  document.getElementById('ov-edit').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-name').focus(),120);
+}
+function closeEdit(){ document.getElementById('ov-edit').classList.remove('open'); editId=null; pendingEditPhoto=null; }
+function clearEditPhoto(){
+  editPhotoCleared=true; pendingEditPhoto=null;
+  document.getElementById('edit-photo-preview').style.display='none';
+  document.getElementById('edit-photo-preview').src='';
+}
+function doEdit(){
+  const name=document.getElementById('edit-name').value.trim();
+  if(!name||editId===null)return;
+  nodes[editId].name=name;
+  if(pendingEditPhoto) photos[editId]=pendingEditPhoto;
+  else if(editPhotoCleared) delete photos[editId];
+  // rebuild node element
+  if(nodes[editId].el){ nodes[editId].el.remove(); nodes[editId].el=null; }
+  closeEdit(); layout(); render(); saveAll();
+}
+
+// ══════════════════════════════════════════
+// DELETE
+// ══════════════════════════════════════════
+function getAllDescendants(id){
+  const result=[id];
+  nodes.filter(c=>c.pid===id).forEach(c=>result.push(...getAllDescendants(c.id)));
+  return result;
+}
+function doDelete(){
+  if(ctxId===null)return;
+  if(ctxId===0){ alert('لا يمكن حذف الجد الأكبر'); hideCtx(); return; }
+  const n=nodes[ctxId];
+  const kids=getAllDescendants(ctxId).length-1;
+  const msg=kids>0?`سيتم حذف "${n.name}" و${kids} من أحفاده. هل أنت متأكد؟`:`هل تريد حذف "${n.name}"؟`;
+  if(!confirm(msg)){ hideCtx(); return; }
+  const toDelete=new Set(getAllDescendants(ctxId));
+  toDelete.forEach(id=>{ if(nodes[id].el){nodes[id].el.remove();nodes[id].el=null;} delete photos[id]; });
+  nodes=nodes.filter(n=>!toDelete.has(n.id));
+  // re-index ids
+  const idMap={};
+  nodes.forEach((n,i)=>{ idMap[n.id]=i; n.id=i; });
+  nodes.forEach(n=>{ if(n.pid!==null&&n.pid!==undefined) n.pid=idMap[n.pid]; });
+  const newPhotos={};
+  Object.keys(photos).forEach(k=>{ const nk=idMap[k]; if(nk!==undefined) newPhotos[nk]=photos[k]; });
+  photos=newPhotos; idSeq=nodes.length;
+  hideCtx(); layout(); render(); saveAll();
+}
+
+// ══════════════════════════════════════════
+// RESET
+// ══════════════════════════════════════════
+function resetTree(){
+  if(!confirm('هل تريد حذف جميع التعديلات والرجوع للبيانات الأصلية؟'))return;
+  localStorage.removeItem(SK); photos={};
+  initTree(clone(ORIG));
+}
+
+// ══════════════════════════════════════════
+// SAVE FLASH
+// ══════════════════════════════════════════
+let savedTmr=null;
+function flashSaved(){ const e=document.getElementById('saved');e.style.display='block';clearTimeout(savedTmr);savedTmr=setTimeout(()=>e.style.display='none',2200); }
+
+// ══════════════════════════════════════════
+// SPLASH SCREEN
+// ══════════════════════════════════════════
+function countAll(obj){ return 1+(obj.children||[]).reduce((s,c)=>s+countAll(c),0); }
+const totalMembers=countAll(ORIG);
+const splashCount=document.getElementById('splash-count');
+if(splashCount) splashCount.textContent='👥 '+totalMembers+' فرد مسجّل في الشجرة';
+function enterTree(){
+  document.getElementById('splash').classList.add('hide');
+}
+
+// ══════════════════════════════════════════
+// MOBILE LONG-PRESS → CONTEXT MENU
+// ══════════════════════════════════════════
+let lpTimer=null, lpId=null;
+function startLongPress(e,id){
+  lpId=id;
+  lpTimer=setTimeout(()=>{
+    const touch=e.touches[0];
+    showCtx({clientX:touch.clientX,clientY:touch.clientY},id);
+    lpId=null;
+  },550);
+}
+function cancelLongPress(){ if(lpTimer){clearTimeout(lpTimer);lpTimer=null;} }
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+function initTree(data){
+  nodes=[];idSeq=0;
+  world.querySelectorAll('.nw').forEach(e=>e.remove());
+  buildNodes(data,null,0);
+  layout();render();fitView();
+}
+
+window.addEventListener('resize',fitView);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){closeAdd();closeEdit();hideCtx();} });
+
+const startData=loadData2();
+initTree(startData);
+</script>
+</body>
+</html>
